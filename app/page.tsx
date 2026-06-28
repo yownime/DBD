@@ -17,7 +17,6 @@ import {
 import Sidebar from '../components/sidebar';
 import StatCard from '../components/stat-card';
 import ChartsSection from '../components/charts-section';
-import DataTable from '../components/data-table';
 import { 
   MalariaRecord,
 } from '../utils/dbd-parser';
@@ -234,15 +233,6 @@ export default function DashboardPage() {
                 isDark={isDark} 
                 projectionData={projectionRecords}
               />
-
-              {/* Data Table */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">Tabel Data Kasus & Hasil Klasifikasi SVM</h3>
-                  <p className="text-xs text-[var(--text-secondary)]">Rincian data pasien lengkap dengan perbandingan Kategori Risiko Aktual vs Prediksi AI SVM.</p>
-                </div>
-                <DataTable type="raw" rawData={historicalRecords} />
-              </div>
             </>
           )}
         </div>

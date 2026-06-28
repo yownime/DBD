@@ -1,5 +1,9 @@
+"use client";
+
 import React from 'react';
-import { LayoutDashboard, Sun, Moon, ShieldAlert, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Sun, Moon, ShieldAlert, LogOut, Database } from 'lucide-react';
 import { useAuth } from '../context/auth-context';
 
 interface SidebarProps {
@@ -9,6 +13,10 @@ interface SidebarProps {
 
 export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
+
+  const isDashboardActive = pathname === "/";
+  const isManajemenDataActive = pathname === "/manajemen-data";
 
   return (
     <aside className="w-64 glass-panel border-r shrink-0 flex flex-col h-screen sticky top-0 transition-all duration-300">
@@ -29,12 +37,28 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
 
       {/* Navigation List */}
       <nav className="flex-1 px-4 py-6 space-y-1">
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all bg-teal-500 text-white shadow-md shadow-teal-500/10"
+        <Link
+          href="/"
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+            isDashboardActive
+              ? "bg-teal-500 text-white shadow-md shadow-teal-500/10"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+          }`}
         >
           <LayoutDashboard size={18} />
           <span>Dashboard Historis</span>
-        </button>
+        </Link>
+        <Link
+          href="/manajemen-data"
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+            isManajemenDataActive
+              ? "bg-teal-500 text-white shadow-md shadow-teal-500/10"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <Database size={18} />
+          <span>Manajemen Data</span>
+        </Link>
       </nav>
 
       {/* Footer Settings & Theme Switcher */}
@@ -89,4 +113,3 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
     </aside>
   );
 }
-
