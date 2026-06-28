@@ -15,14 +15,16 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
 } from 'recharts';
-import { DBDRecord, PredictionRecord, aggregateHistoricalData } from '../utils/dbd-parser';
+import { MalariaRecord, PredictionRecord } from '../utils/dbd-parser';
 
 interface ChartsSectionProps {
   mode: 'historical' | 'prediction';
-  historicalData: DBDRecord[];
+  historicalData: MalariaRecord[];
   predictionData: PredictionRecord[];
   isDark: boolean;
+  projectionData?: any[];
 }
 
 export default function ChartsSection({
@@ -30,16 +32,26 @@ export default function ChartsSection({
   historicalData,
   predictionData,
   isDark,
+  projectionData = [],
 }: ChartsSectionProps) {
-  // Common colors
+  
+  // Custom colors for groups
   const COLORS = {
-    Rendah: '#10b981', // Emerald 500
-    Sedang: '#f59e0b', // Amber 500
-    Tinggi: '#ef4444', // Red 500
+    // Kelompok Risiko Usia Colors
+    Balita: '#14b8a6', // Teal 500
+    Remaja: '#6366f1', // Indigo 500
+    Dewasa: '#f59e0b', // Amber 500
+    Lansia: '#f43f5e', // Rose 500
+    
+    // Gender Colors
     Laki_Laki: '#0ea5e9', // Sky 500
     Perempuan: '#ec4899', // Pink 500
-    Accent1: '#6366f1', // Indigo 500
-    Accent2: '#8b5cf6', // Purple 500
+    
+    // Blood Type Colors
+    BloodA: '#ef4444',
+    BloodB: '#3b82f6',
+    BloodAB: '#8b5cf6',
+    BloodO: '#10b981',
   };
 
   const gridColor = isDark ? '#334155' : '#e2e8f0';
@@ -47,21 +59,62 @@ export default function ChartsSection({
   const tooltipBg = isDark ? '#1e293b' : '#ffffff';
   const tooltipBorder = isDark ? '#334155' : '#e2e8f0';
 
+  // Static SVM Model Metrics (based on training evaluation results)
+  const cvData = [
+    { name: 'Fold 1', Skor: 0.7744 },
+    { name: 'Fold 2', Skor: 0.7768 },
+    { name: 'Fold 3', Skor: 0.7815 },
+    { name: 'Fold 4', Skor: 0.7827 },
+    { name: 'Fold 5', Skor: 0.7827 },
+  ];
+  const cvMean = 0.7796;
+
+  // Actual vs Predicted classes from test validation
+  // Classes: ['Balita (0-5)', 'Remaja (6-17)', 'Dewasa (18-45)', 'Lansia (46+)']
+  // Rows: Actual, Cols: Predicted
+  const confusionMatrix = [
+    { actual: 'Balita (0-5)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 49, 'Lansia (46+)': 0 },
+    { actual: 'Remaja (6-17)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 115, 'Lansia (46+)': 0 },
+    { actual: 'Dewasa (18-45)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 280, 'Lansia (46+)': 5 },
+    { actual: 'Lansia (46+)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 10, 'Lansia (46+)': 375 },
+  ];
+
   // 1. Calculations for Historical Mode
   const historicalStats = useMemo(() => {
     if (mode !== 'historical' || historicalData.length === 0) return null;
 
-    // Group cases by year
     const yearCounts: { [year: number]: number } = {};
-    const regionCounts: { [region: string]: number } = {};
+    const riskCounts = { 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 0, 'Lansia (46+)': 0 };
+    const bloodCounts = { 'A': 0, 'B': 0, 'AB': 0, 'O': 0 };
+    const yearRiskCounts: { [year: number]: { [risk: string]: number } } = {};
     let maleCount = 0;
     let femaleCount = 0;
 
     historicalData.forEach((r) => {
-      // Year
-      yearCounts[r.Tahun] = (yearCounts[r.Tahun] || 0) + 1;
-      // Region
-      regionCounts[r.Wilayah] = (regionCounts[r.Wilayah] || 0) + 1;
+      // Year Trend
+      const year = r.Tahun;
+      yearCounts[year] = (yearCounts[year] || 0) + 1;
+      
+      // Risk Groups
+      const riskKey = r.Risiko as keyof typeof riskCounts;
+      if (riskKey in riskCounts) {
+        riskCounts[riskKey]++;
+      }
+
+      // Year & Risk Group combination for grouped bar chart
+      if (!yearRiskCounts[year]) {
+        yearRiskCounts[year] = { 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 0, 'Lansia (46+)': 0 };
+      }
+      if (riskKey in yearRiskCounts[year]) {
+        yearRiskCounts[year][riskKey]++;
+      }
+      
+      // Blood Type
+      const bloodKey = r.Golongan_Darah as keyof typeof bloodCounts;
+      if (bloodKey in bloodCounts) {
+        bloodCounts[bloodKey]++;
+      }
+      
       // Gender
       if (r.Jenis_Kelamin === 'Perempuan') {
         femaleCount++;
@@ -77,98 +130,96 @@ export default function ChartsSection({
       }))
       .sort((a, b) => Number(a.name) - Number(b.name));
 
-    const topRegions = Object.entries(regionCounts)
-      .map(([region, count]) => ({
-        name: region,
-        Kasus: count,
+    // Convert yearRiskCounts into Recharts format
+    const yearlyRiskTrend = Object.entries(yearRiskCounts)
+      .map(([year, counts]) => ({
+        name: year,
+        'Balita (0-5)': counts['Balita (0-5)'],
+        'Remaja (6-17)': counts['Remaja (6-17)'],
+        'Dewasa (18-45)': counts['Dewasa (18-45)'],
+        'Lansia (46+)': counts['Lansia (46+)'],
       }))
-      .sort((a, b) => b.Kasus - a.Kasus)
-      .slice(0, 10);
+      .sort((a, b) => Number(a.name) - Number(b.name));
+
+    const riskData = [
+      { name: 'Balita (0-5)', value: riskCounts['Balita (0-5)'], color: COLORS.Balita },
+      { name: 'Remaja (6-17)', value: riskCounts['Remaja (6-17)'], color: COLORS.Remaja },
+      { name: 'Dewasa (18-45)', value: riskCounts['Dewasa (18-45)'], color: COLORS.Dewasa },
+      { name: 'Lansia (46+)', value: riskCounts['Lansia (46+)'], color: COLORS.Lansia },
+    ];
+
+    const bloodData = [
+      { name: 'Golongan A', value: bloodCounts['A'], color: COLORS.BloodA },
+      { name: 'Golongan B', value: bloodCounts['B'], color: COLORS.BloodB },
+      { name: 'Golongan AB', value: bloodCounts['AB'], color: COLORS.BloodAB },
+      { name: 'Golongan O', value: bloodCounts['O'], color: COLORS.BloodO },
+    ];
 
     const genderData = [
       { name: 'Laki Laki', value: maleCount, color: COLORS.Laki_Laki },
       { name: 'Perempuan', value: femaleCount, color: COLORS.Perempuan },
     ];
 
-    // Risk distribution based on aggregations
-    const aggregated = aggregateHistoricalData(historicalData);
-    const riskCounts = { Rendah: 0, Sedang: 0, Tinggi: 0 };
-    aggregated.forEach((r) => {
-      if (r.Risiko === 'Rendah') riskCounts.Rendah++;
-      else if (r.Risiko === 'Sedang') riskCounts.Sedang++;
-      else if (r.Risiko === 'Tinggi') riskCounts.Tinggi++;
-    });
-
-    const riskData = [
-      { name: 'Rendah', value: riskCounts.Rendah, color: COLORS.Rendah },
-      { name: 'Sedang', value: riskCounts.Sedang, color: COLORS.Sedang },
-      { name: 'Tinggi', value: riskCounts.Tinggi, color: COLORS.Tinggi },
-    ];
-
-    return { yearlyTrend, topRegions, genderData, riskData };
+    return { yearlyTrend, yearlyRiskTrend, riskData, bloodData, genderData };
   }, [historicalData, mode]);
 
   // 2. Calculations for Prediction Mode
   const predictionStats = useMemo(() => {
     if (mode !== 'prediction' || predictionData.length === 0) return null;
 
-    // Predicted risk counts
-    const predRiskCounts = { Rendah: 0, Sedang: 0, Tinggi: 0 };
-    const actualRiskCounts = { Rendah: 0, Sedang: 0, Tinggi: 0 };
-    const regionCases: { [region: string]: number } = {};
+    const predRiskCounts = { 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 0, 'Lansia (46+)': 0 };
+    const bloodCounts = { 'A': 0, 'B': 0, 'AB': 0, 'O': 0 };
+    let maleCount = 0;
+    let femaleCount = 0;
 
     predictionData.forEach((r) => {
-      predRiskCounts[r.Prediksi as keyof typeof predRiskCounts] = 
-        (predRiskCounts[r.Prediksi as keyof typeof predRiskCounts] || 0) + 1;
+      const predKey = r.Prediksi as keyof typeof predRiskCounts;
+      if (predKey in predRiskCounts) {
+        predRiskCounts[predKey]++;
+      }
       
-      actualRiskCounts[r.Risiko as keyof typeof actualRiskCounts] = 
-        (actualRiskCounts[r.Risiko as keyof typeof actualRiskCounts] || 0) + 1;
-        
-      regionCases[r.Wilayah] = r.Jumlah_Kasus;
+      const bloodKey = r.Golongan_Darah as keyof typeof bloodCounts;
+      if (bloodKey in bloodCounts) {
+        bloodCounts[bloodKey]++;
+      }
+
+      if (r.Jenis_Kelamin === 'Perempuan') {
+        femaleCount++;
+      } else {
+        maleCount++;
+      }
     });
 
-    const topRegions = Object.entries(regionCases)
-      .map(([region, cases]) => ({
-        name: region,
-        Kasus: cases,
-      }))
-      .sort((a, b) => b.Kasus - a.Kasus)
-      .slice(0, 10);
-
-    const comparisonData = [
-      {
-        name: 'Rendah',
-        'Aturan (Jumlah)': actualRiskCounts.Rendah,
-        'Prediksi AI (SVM)': predRiskCounts.Rendah,
-      },
-      {
-        name: 'Sedang',
-        'Aturan (Jumlah)': actualRiskCounts.Sedang,
-        'Prediksi AI (SVM)': predRiskCounts.Sedang,
-      },
-      {
-        name: 'Tinggi',
-        'Aturan (Jumlah)': actualRiskCounts.Tinggi,
-        'Prediksi AI (SVM)': predRiskCounts.Tinggi,
-      },
+    const riskPieData = [
+      { name: 'Balita (0-5)', value: predRiskCounts['Balita (0-5)'], color: COLORS.Balita },
+      { name: 'Remaja (6-17)', value: predRiskCounts['Remaja (6-17)'], color: COLORS.Remaja },
+      { name: 'Dewasa (18-45)', value: predRiskCounts['Dewasa (18-45)'], color: COLORS.Dewasa },
+      { name: 'Lansia (46+)', value: predRiskCounts['Lansia (46+)'], color: COLORS.Lansia },
     ];
 
-    const predRiskPieData = [
-      { name: 'Rendah', value: predRiskCounts.Rendah, color: COLORS.Rendah },
-      { name: 'Sedang', value: predRiskCounts.Sedang, color: COLORS.Sedang },
-      { name: 'Tinggi', value: predRiskCounts.Tinggi, color: COLORS.Tinggi },
+    const bloodData = [
+      { name: 'A', value: bloodCounts['A'], color: COLORS.BloodA },
+      { name: 'B', value: bloodCounts['B'], color: COLORS.BloodB },
+      { name: 'AB', value: bloodCounts['AB'], color: COLORS.BloodAB },
+      { name: 'O', value: bloodCounts['O'], color: COLORS.BloodO },
     ];
 
-    return { topRegions, comparisonData, predRiskPieData };
+    const genderData = [
+      { name: 'Laki Laki', value: maleCount, color: COLORS.Laki_Laki },
+      { name: 'Perempuan', value: femaleCount, color: COLORS.Perempuan },
+    ];
+
+    return { riskPieData, bloodData, genderData };
   }, [predictionData, mode]);
 
   if (mode === 'historical' && historicalStats) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Trend Kasus DBD */}
+        
+        {/* Tren Kasus Malaria */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Tren Kasus DBD (2019-2024)
+            Tren Kasus Malaria per Tahun (2019-2024)
           </h4>
           <div className="h-80 chart-container">
             <ResponsiveContainer width="100%" height="100%">
@@ -183,7 +234,7 @@ export default function ChartsSection({
                 <Line
                   type="monotone"
                   dataKey="Kasus"
-                  stroke={COLORS.Accent1}
+                  stroke={COLORS.Remaja}
                   strokeWidth={3}
                   activeDot={{ r: 6 }}
                   name="Jumlah Kasus"
@@ -193,24 +244,123 @@ export default function ChartsSection({
           </div>
         </div>
 
-        {/* Top 10 Wilayah Kasus Terbanyak */}
+        {/* Distribusi Kelompok Risiko per Tahun (Grouped Bar Chart) */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Top 10 Wilayah Kasus Terbanyak
+            Distribusi Kelompok Risiko per Tahun
           </h4>
           <div className="h-80 chart-container">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={historicalStats.topRegions} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={historicalStats.yearlyRiskTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" stroke={textColor} fontSize={10} tickLine={false} interval={0} tickFormatter={(v) => v.slice(0, 10)} />
+                <XAxis dataKey="name" stroke={textColor} fontSize={12} tickLine={false} />
                 <YAxis stroke={textColor} fontSize={12} tickLine={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
                 />
                 <Legend verticalAlign="top" height={36} />
-                <Bar dataKey="Kasus" fill={COLORS.Accent1} name="Total Kasus" radius={[4, 4, 0, 0]}>
-                  {historicalStats.topRegions.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? COLORS.Accent1 : COLORS.Accent2} />
+                <Bar dataKey="Balita (0-5)" fill={COLORS.Balita} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Remaja (6-17)" fill={COLORS.Remaja} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Dewasa (18-45)" fill={COLORS.Dewasa} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Lansia (46+)" fill={COLORS.Lansia} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Proyeksi Kasus & Kelompok Risiko SVM (2019-2027) */}
+        {projectionData && projectionData.length > 0 && (
+          <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] lg:col-span-2 animate-fade-in">
+            <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
+              Proyeksi Kelompok Risiko Usia Menggunakan SVM (2019-2027)
+            </h4>
+            <div className="h-80 chart-container">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={projectionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                  <XAxis dataKey="Tahun" stroke={textColor} fontSize={12} tickLine={false} />
+                  <YAxis stroke={textColor} fontSize={12} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
+                  />
+                  <Legend verticalAlign="top" height={36} />
+                  <ReferenceLine x={2024} stroke="#f43f5e" strokeDasharray="5 5" label={{ value: 'Mulai Proyeksi', fill: '#f43f5e', position: 'insideTopRight', fontSize: 11 }} />
+                  <Line type="monotone" dataKey="Balita (0-5)" stroke={COLORS.Balita} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="Remaja (6-17)" stroke={COLORS.Remaja} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="Dewasa (18-45)" stroke={COLORS.Dewasa} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="Lansia (46+)" stroke={COLORS.Lansia} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Distribusi Kelompok Risiko Usia (Pie Chart) */}
+        <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
+          <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
+            Proporsi Kelompok Risiko Usia (Total)
+          </h4>
+          <div className="h-80 flex flex-col md:flex-row items-center justify-center">
+            <div className="w-full md:w-1/2 h-64 chart-container">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={historicalStats.riskData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {historicalStats.riskData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8 }}
+                    formatter={(value: any) => [value, 'Kasus']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-full md:w-1/2 px-6 space-y-2">
+              {historicalStats.riskData.map((entry, index) => {
+                const total = historicalStats.riskData.reduce((a, b) => a + b.value, 0);
+                const percent = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
+                return (
+                  <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-tertiary)]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                      <span className="text-xs font-semibold text-[var(--text-secondary)]">{entry.name}</span>
+                    </div>
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
+                      {entry.value.toLocaleString()} ({percent}%)
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Distribusi Golongan Darah */}
+        <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
+          <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
+            Persebaran Golongan Darah Pasien
+          </h4>
+          <div className="h-80 chart-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={historicalStats.bloodData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                <XAxis dataKey="name" stroke={textColor} fontSize={11} tickLine={false} />
+                <YAxis stroke={textColor} fontSize={12} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
+                />
+                <Bar dataKey="value" fill={COLORS.BloodB} name="Pasien" radius={[4, 4, 0, 0]}>
+                  {historicalStats.bloodData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>
@@ -221,7 +371,7 @@ export default function ChartsSection({
         {/* Distribusi Gender */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Proporsi Jenis Kelamin
+            Proporsi Jenis Kelamin Pasien
           </h4>
           <div className="h-80 flex flex-col md:flex-row items-center justify-center">
             <div className="w-full md:w-1/2 h-64 chart-container">
@@ -250,7 +400,7 @@ export default function ChartsSection({
             <div className="w-full md:w-1/2 px-6 space-y-3">
               {historicalStats.genderData.map((entry, index) => {
                 const total = historicalStats.genderData.reduce((a, b) => a + b.value, 0);
-                const percent = ((entry.value / total) * 100).toFixed(1);
+                const percent = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
                 return (
                   <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-tertiary)]">
                     <div className="flex items-center gap-2">
@@ -267,51 +417,114 @@ export default function ChartsSection({
           </div>
         </div>
 
-        {/* Distribusi Risiko Wilayah */}
+        {/* Section: SVM Model Evaluation & Metrics */}
+        <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] lg:col-span-2 space-y-6">
+          <div>
+            <h4 className="text-sm font-bold text-[var(--text-primary)] tracking-tight uppercase mb-1">
+              Grafik Evaluasi Model SVM AI
+            </h4>
+            <p className="text-xs text-[var(--text-secondary)]">Karakteristik performa model SVM hasil training dan validasi 5-Fold.</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 1. Cross-Validation Score */}
+            <div className="space-y-4">
+              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Cross-Validation Scores (5-Fold)</h5>
+              <div className="h-64 chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cvData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                    <XAxis dataKey="name" stroke={textColor} fontSize={11} tickLine={false} />
+                    <YAxis stroke={textColor} fontSize={12} tickLine={false} domain={[0.6, 1.0]} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
+                    />
+                    <ReferenceLine y={cvMean} stroke="#ef4444" strokeDasharray="3 3" label={{ value: `Rerata: ${(cvMean*100).toFixed(1)}%`, fill: '#ef4444', position: 'top', fontSize: 10 }} />
+                    <Bar dataKey="Skor" fill="#6366f1" radius={[4, 4, 0, 0]} name="Akurasi" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* 2. Confusion Matrix heat-grid */}
+            <div className="space-y-4 flex flex-col justify-between">
+              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Confusion Matrix (Akurasi: 78.1%)</h5>
+              <div className="border border-[var(--border-color)] rounded-xl overflow-hidden text-xs bg-[var(--bg-tertiary)] flex-1 flex flex-col justify-center">
+                <table className="w-full text-center border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)] font-bold text-[var(--text-primary)]">
+                      <th className="p-2 border-r border-[var(--border-color)] text-[10px] text-left">Aktual \ Prediksi</th>
+                      <th className="p-2 text-[10px]">Balita</th>
+                      <th className="p-2 text-[10px]">Remaja</th>
+                      <th className="p-2 text-[10px]">Dewasa</th>
+                      <th className="p-2 text-[10px]">Lansia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {confusionMatrix.map((row, i) => (
+                      <tr key={i} className="border-b border-[var(--border-color)] last:border-none">
+                        <td className="p-2 font-bold border-r border-[var(--border-color)] text-[10px] text-left">{row.actual}</td>
+                        <td className={`p-2 font-bold ${row['Balita (0-5)'] > 0 ? 'bg-teal-500/25 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] font-normal opacity-40'}`}>{row['Balita (0-5)']}</td>
+                        <td className={`p-2 font-bold ${row['Remaja (6-17)'] > 0 ? 'bg-indigo-500/25 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] font-normal opacity-40'}`}>{row['Remaja (6-17)']}</td>
+                        <td className={`p-2 font-bold ${row['Dewasa (18-45)'] > 0 ? 'bg-amber-500/25 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] font-normal opacity-40'}`}>{row['Dewasa (18-45)']}</td>
+                        <td className={`p-2 font-bold ${row['Lansia (46+)'] > 0 ? 'bg-rose-500/25 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] font-normal opacity-40'}`}>{row['Lansia (46+)']}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  }
+
+  if (mode === 'prediction' && predictionStats) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Proporsi Risiko Prediksi (Pie) */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Kategori Risiko Wilayah (Kasus per Tahun)
+            Hasil Klasifikasi Kelompok Risiko AI (SVM)
           </h4>
           <div className="h-80 flex flex-col md:flex-row items-center justify-center">
             <div className="w-full md:w-1/2 h-64 chart-container">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={historicalStats.riskData}
+                    data={predictionStats.riskPieData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
                     outerRadius={80}
-                    paddingAngle={5}
+                    paddingAngle={3}
                     dataKey="value"
                     nameKey="name"
                   >
-                    {historicalStats.riskData.map((entry, index) => (
+                    {predictionStats.riskPieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
-                    formatter={(value: any, name: any) => {
-                      const total = historicalStats.riskData.reduce((a, b) => a + b.value, 0);
-                      const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
-                      return [`${value} kombinasi wilayah (${pct}%)`, `Risiko ${name}`];
-                    }}
+                    formatter={(value: any) => [value, 'Kasus']}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="w-full md:w-1/2 px-6 space-y-3">
-              {historicalStats.riskData.map((entry, index) => {
-                const total = historicalStats.riskData.reduce((a, b) => a + b.value, 0);
+            <div className="w-full md:w-1/2 px-6 space-y-2">
+              {predictionStats.riskPieData.map((entry, index) => {
+                const total = predictionStats.riskPieData.reduce((a, b) => a + b.value, 0);
                 const percent = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
                 return (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-tertiary)]">
+                  <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-tertiary)]">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                      <span className="text-sm font-medium text-[var(--text-secondary)]">{entry.name}</span>
+                      <span className="text-xs font-semibold text-[var(--text-secondary)]">{entry.name}</span>
                     </div>
-                    <span className="text-sm font-bold text-[var(--text-primary)]">
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
                       {entry.value} ({percent}%)
                     </span>
                   </div>
@@ -320,31 +533,24 @@ export default function ChartsSection({
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
 
-  if (mode === 'prediction' && predictionStats) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Kasus di Wilayah Prediksi */}
+        {/* Distribusi Golongan Darah - Prediksi */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Prediksi Kasus per Wilayah (10 Teratas)
+            Golongan Darah pada Dataset Prediksi
           </h4>
           <div className="h-80 chart-container">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={predictionStats.topRegions} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={predictionStats.bloodData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" stroke={textColor} fontSize={10} tickLine={false} interval={0} tickFormatter={(v) => v.slice(0, 10)} />
+                <XAxis dataKey="name" stroke={textColor} fontSize={12} tickLine={false} />
                 <YAxis stroke={textColor} fontSize={12} tickLine={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
                 />
-                <Legend verticalAlign="top" height={36} />
-                <Bar dataKey="Kasus" fill={COLORS.Accent1} name="Jumlah Kasus" radius={[4, 4, 0, 0]}>
-                  {predictionStats.topRegions.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? COLORS.Accent1 : COLORS.Accent2} />
+                <Bar dataKey="value" fill={COLORS.BloodA} name="Pasien" radius={[4, 4, 0, 0]}>
+                  {predictionStats.bloodData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>
@@ -352,75 +558,45 @@ export default function ChartsSection({
           </div>
         </div>
 
-        {/* Perbandingan Aturan vs Model SVM AI */}
-        <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
-          <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Perbandingan Risiko: Aturan Manual vs Prediksi AI SVM
-          </h4>
-          <div className="h-80 chart-container">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={predictionStats.comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" stroke={textColor} fontSize={12} tickLine={false} />
-                <YAxis stroke={textColor} fontSize={12} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
-                />
-                <Legend verticalAlign="top" height={36} />
-                <Bar dataKey="Aturan (Jumlah)" fill="#84cc16" name="Klasifikasi Aturan" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Prediksi AI (SVM)" fill={COLORS.Accent1} name="Prediksi SVM AI" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Proporsi Risiko Prediksi (Pie) */}
+        {/* Jenis Kelamin - Prediksi */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] lg:col-span-2 animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Proporsi Kategori Risiko Hasil Prediksi AI (SVM)
+            Proporsi Jenis Kelamin Dataset Prediksi
           </h4>
-          <div className="h-64 flex flex-col md:flex-row items-center justify-center">
-            <div className="w-full md:w-1/2 h-48 chart-container">
+          <div className="h-48 flex flex-col md:flex-row items-center justify-center">
+            <div className="w-full md:w-1/2 h-36 chart-container">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={predictionStats.predRiskPieData}
+                    data={predictionStats.genderData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
-                    outerRadius={70}
+                    innerRadius={45}
+                    outerRadius={65}
                     paddingAngle={5}
                     dataKey="value"
-                    nameKey="name"
                   >
-                    {predictionStats.predRiskPieData.map((entry, index) => (
+                    {predictionStats.genderData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8, color: textColor }}
-                    formatter={(value: any, name: any) => {
-                      const total = predictionStats.predRiskPieData.reduce((a, b) => a + b.value, 0);
-                      const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
-                      return [`${value} wilayah (${pct}%)`, `Prediksi Risiko ${name}`];
-                    }}
+                    contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 8 }}
+                    formatter={(value: any) => [value, 'Pasien']}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="w-full md:w-1/2 px-6 grid grid-cols-3 gap-4">
-              {predictionStats.predRiskPieData.map((entry, index) => {
-                const total = predictionStats.predRiskPieData.reduce((a, b) => a + b.value, 0);
+            <div className="w-full md:w-1/2 px-6 flex gap-4">
+              {predictionStats.genderData.map((entry, index) => {
+                const total = predictionStats.genderData.reduce((a, b) => a + b.value, 0);
                 const percent = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
                 return (
-                  <div key={index} className="flex flex-col items-center justify-center p-4 rounded-2xl bg-[var(--bg-tertiary)] text-center">
-                    <div className="w-3.5 h-3.5 rounded-full mb-2" style={{ backgroundColor: entry.color }} />
-                    <span className="text-xs font-bold text-[var(--text-secondary)] mb-1">{entry.name}</span>
-                    <span className="text-lg font-extrabold text-[var(--text-primary)] leading-tight">
-                      {entry.value}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
-                      ({percent}%)
+                  <div key={index} className="flex-1 flex flex-col items-center justify-center p-4 rounded-xl bg-[var(--bg-tertiary)]">
+                    <div className="w-3.5 h-3.5 rounded-full mb-1" style={{ backgroundColor: entry.color }} />
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">{entry.name}</span>
+                    <span className="text-base font-bold text-[var(--text-primary)] mt-1">
+                      {entry.value} ({percent}%)
                     </span>
                   </div>
                 );
