@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../context/auth-context';
 import { 
   Database, 
   MapPin, 
@@ -21,7 +23,19 @@ import {
 } from '../utils/dbd-parser';
 
 export default function DashboardPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [isDark, setIsDark] = useState(false);
+
+  // Authentication protection
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, authLoading, router]);
+
+  // Prevent loading state flashes or data fetching when not authenticated
+  const shouldRender = isAuthenticated && !authLoading;
 
   // Historical Data States
   const [historicalRecords, setHistoricalRecords] = useState<MalariaRecord[]>([]);
@@ -112,6 +126,15 @@ export default function DashboardPage() {
       topGroup: `${topGroup} (${maxCases.toLocaleString()} Kasus)`
     };
   }, [historicalRecords]);
+
+  if (!shouldRender) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--bg-primary)] space-y-4">
+        <RefreshCw size={36} className="animate-spin text-teal-500" />
+        <p className="text-sm font-semibold text-[var(--text-secondary)]">Memeriksa autentikasi...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">

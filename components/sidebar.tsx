@@ -1,5 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, Sun, Moon, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Sun, Moon, ShieldAlert, LogOut } from 'lucide-react';
+import { useAuth } from '../context/auth-context';
 
 interface SidebarProps {
   isDark: boolean;
@@ -7,6 +8,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="w-64 glass-panel border-r shrink-0 flex flex-col h-screen sticky top-0 transition-all duration-300">
       {/* Brand Header */}
@@ -35,7 +38,24 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
       </nav>
 
       {/* Footer Settings & Theme Switcher */}
-      <div className="p-4 border-t border-[var(--border-color)] space-y-4">
+      <div className="p-4 border-t border-[var(--border-color)] space-y-3.5">
+        {/* User Card */}
+        {user && (
+          <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-between">
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-[var(--text-primary)] truncate">{user.username}</span>
+              <span className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider">{user.role}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="p-2 rounded-lg hover:bg-rose-500/10 hover:text-rose-500 text-[var(--text-secondary)] transition-colors cursor-pointer"
+              title="Keluar"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-tertiary)]">
           <div className="flex items-center gap-2">
             {isDark ? (
@@ -69,3 +89,4 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
     </aside>
   );
 }
+
