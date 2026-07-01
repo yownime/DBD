@@ -70,7 +70,7 @@ export default function DataManagementPage() {
         }
       } catch (err: any) {
         setDataError(
-          'Gagal memuat data Malaria dari berkas static JSON. Pastikan file "public/data/malaria_data.json" terbuat.'
+          'Gagal memuat data DBD dari berkas static JSON. Pastikan file "public/data/malaria_data.json" terbuat.'
         );
       } finally {
         setLoadingData(false);
@@ -108,7 +108,7 @@ export default function DataManagementPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)] font-semibold tracking-wider uppercase mb-1.5">
-              <span>Sistem AI Malaria</span>
+              <span>Sistem AI DBD</span>
               <ChevronRight size={10} />
               <span className="text-teal-500 font-bold">Manajemen Data</span>
             </div>
@@ -136,7 +136,7 @@ export default function DataManagementPage() {
           ) : loadingData ? (
             <div className="flex flex-col items-center justify-center py-24 space-y-4">
               <RefreshCw size={36} className="animate-spin text-teal-500" />
-              <p className="text-sm font-semibold text-[var(--text-secondary)]">Memuat data Malaria...</p>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">Memuat data DBD...</p>
             </div>
           ) : (
             <div className="glass-panel p-6 rounded-[var(--radius-card)] border border-[var(--border-color)] space-y-4">

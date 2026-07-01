@@ -216,10 +216,10 @@ export default function ChartsSection({
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Tren Kasus Malaria */}
+        {/* Tren Kasus DBD */}
         <div className="p-6 rounded-2xl glass-panel border border-[var(--border-color)] animate-fade-in">
           <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 tracking-tight uppercase">
-            Tren Kasus Malaria per Tahun (2019-2024)
+            Tren Kasus DBD per Tahun (2019-2024)
           </h4>
           <div className="h-80 chart-container">
             <ResponsiveContainer width="100%" height="100%">

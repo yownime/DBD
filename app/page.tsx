@@ -82,7 +82,7 @@ export default function DashboardPage() {
         }
       } catch (err: any) {
         setHistoricalError(
-          'Gagal memuat data Malaria dari berkas static JSON. Pastikan file "public/data/malaria_data.json" terbuat.'
+          'Gagal memuat data DBD dari berkas static JSON. Pastikan file "public/data/malaria_data.json" terbuat.'
         );
       } finally {
         setLoadingHistorical(false);
@@ -150,15 +150,15 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)] font-semibold tracking-wider uppercase mb-1.5">
-              <span>Sistem AI Malaria</span>
+              <span>Sistem AI DBD</span>
               <ChevronRight size={10} />
               <span className="text-teal-500 font-bold">Dashboard Historis</span>
             </div>
             <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
-              Dashboard Analisis Historis Malaria
+              Dashboard Analisis Historis DBD
             </h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Visualisasi data Malaria Sumatera Utara periode 2019-2024 terintegrasi langsung dengan klasifikasi prediksi SVM.
+              Visualisasi data DBD Sumatera Utara periode 2019-2024 terintegrasi langsung dengan klasifikasi prediksi SVM.
             </p>
           </div>
           
@@ -180,7 +180,7 @@ export default function DashboardPage() {
           ) : loadingHistorical ? (
             <div className="flex flex-col items-center justify-center py-24 space-y-4">
               <RefreshCw size={36} className="animate-spin text-teal-500" />
-              <p className="text-sm font-semibold text-[var(--text-secondary)]">Memuat data Malaria dan prediksi SVM...</p>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">Memuat data DBD dan prediksi SVM...</p>
             </div>
           ) : (
             <>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
               {historicalCardsData && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
                   <StatCard 
-                    title="Total Kasus Malaria" 
+                    title="Total Kasus DBD" 
                     value={historicalCardsData.totalCases.toLocaleString()} 
                     icon={<Database size={20} />} 
                     description="Catatan Kasus 2019-2024"

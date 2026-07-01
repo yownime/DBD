@@ -107,7 +107,7 @@ export default function LoginPage() {
               <ShieldAlert size={30} className="animate-pulse" />
             </div>
             <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">
-              Malaria Analytics Portal
+              DBD Analytics Portal
             </h1>
             <p className="text-xs font-semibold text-teal-500 tracking-widest uppercase mt-1">
               SVM AI Predicton System

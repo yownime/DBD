@@ -27,7 +27,7 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
         </div>
         <div>
           <h1 className="font-bold text-lg leading-tight tracking-tight text-[var(--text-primary)]">
-            Malaria Analytics
+            DBD Analytics
           </h1>
           <span className="text-xs font-semibold text-teal-500 tracking-wider uppercase">
             SVM AI Predictor
@@ -106,7 +106,7 @@ export default function Sidebar({ isDark, toggleTheme }: SidebarProps) {
 
         <div className="text-center">
           <p className="text-[10px] text-[var(--text-tertiary)]">
-            Malaria AI Dashboard v1.2.0
+            DBD AI Dashboard v1.2.0
           </p>
         </div>
       </div>
