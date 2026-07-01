@@ -448,7 +448,7 @@ export default function ChartsSection({
 
             {/* 2. Confusion Matrix heat-grid */}
             <div className="space-y-4 flex flex-col justify-between">
-              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Confusion Matrix (Akurasi: 78.1%)</h5>
+              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Confusion Matrix (Akurasi: 79.0%)</h5>
               <div className="border border-[var(--border-color)] rounded-xl overflow-hidden text-xs bg-[var(--bg-tertiary)] flex-1 flex flex-col justify-center">
                 <table className="w-full text-center border-collapse">
                   <thead>
