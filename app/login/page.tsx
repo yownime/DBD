@@ -193,12 +193,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo Info Box */}
-          <div className="mt-8 pt-6 border-t border-[var(--border-color)] text-center">
-            <p className="text-[11px] text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] py-2.5 px-4 rounded-lg inline-block">
-              Akun Demo: <span className="font-bold text-[var(--text-secondary)]">admin</span> / <span className="font-bold text-[var(--text-secondary)]">admin123</span>
-            </p>
-          </div>
         </div>
       </div>
     </div>
