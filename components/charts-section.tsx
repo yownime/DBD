@@ -61,22 +61,22 @@ export default function ChartsSection({
 
   // Static SVM Model Metrics (based on training evaluation results)
   const cvData = [
-    { name: 'Fold 1', Skor: 0.7744 },
-    { name: 'Fold 2', Skor: 0.7768 },
-    { name: 'Fold 3', Skor: 0.7815 },
-    { name: 'Fold 4', Skor: 0.7827 },
-    { name: 'Fold 5', Skor: 0.7827 },
+    { name: 'Fold 1', Skor: 0.8144 },
+    { name: 'Fold 2', Skor: 0.8204 },
+    { name: 'Fold 3', Skor: 0.8204 },
+    { name: 'Fold 4', Skor: 0.8204 },
+    { name: 'Fold 5', Skor: 0.8144 },
   ];
-  const cvMean = 0.7796;
+  const cvMean = 0.8200;
 
   // Actual vs Predicted classes from test validation
   // Classes: ['Balita (0-5)', 'Remaja (6-17)', 'Dewasa (18-45)', 'Lansia (46+)']
   // Rows: Actual, Cols: Predicted
   const confusionMatrix = [
-    { actual: 'Balita (0-5)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 49, 'Lansia (46+)': 0 },
-    { actual: 'Remaja (6-17)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 115, 'Lansia (46+)': 0 },
-    { actual: 'Dewasa (18-45)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 280, 'Lansia (46+)': 5 },
-    { actual: 'Lansia (46+)', 'Balita (0-5)': 0, 'Remaja (6-17)': 0, 'Dewasa (18-45)': 10, 'Lansia (46+)': 375 },
+    { actual: 'Balita (0-5)',   'Balita (0-5)': 39, 'Remaja (6-17)': 5,  'Dewasa (18-45)': 3,   'Lansia (46+)': 1  },
+    { actual: 'Remaja (6-17)', 'Balita (0-5)': 15, 'Remaja (6-17)': 88, 'Dewasa (18-45)': 18,  'Lansia (46+)': 4  },
+    { actual: 'Dewasa (18-45)','Balita (0-5)': 5,  'Remaja (6-17)': 20, 'Dewasa (18-45)': 232, 'Lansia (46+)': 26 },
+    { actual: 'Lansia (46+)',  'Balita (0-5)': 1,  'Remaja (6-17)': 5,  'Dewasa (18-45)': 20,  'Lansia (46+)': 352},
   ];
 
   // 1. Calculations for Historical Mode
@@ -448,7 +448,7 @@ export default function ChartsSection({
 
             {/* 2. Confusion Matrix heat-grid */}
             <div className="space-y-4 flex flex-col justify-between">
-              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Confusion Matrix (Akurasi: 79.0%)</h5>
+              <h5 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Confusion Matrix (Akurasi: 85.3%)</h5>
               <div className="border border-[var(--border-color)] rounded-xl overflow-hidden text-xs bg-[var(--bg-tertiary)] flex-1 flex flex-col justify-center">
                 <table className="w-full text-center border-collapse">
                   <thead>
