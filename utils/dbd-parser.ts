@@ -54,7 +54,7 @@ export async function fetchAndParseHistoricalData(): Promise<MalariaRecord[]> {
       Jenis_Kelamin: String(row.Jenis_Kelamin || 'Laki Laki').trim(),
       Golongan_Darah: String(row.Golongan_Darah || 'O').trim().toUpperCase(),
       Tahun: Number(row.Tahun || 2024),
-      Risiko: String(row.Risiko || 'Dewasa (18-45)').trim()
+      Risiko: String(row.Risiko || 'Tidak Rentan').trim()
     }));
   } catch (error) {
     console.error("Error loading or parsing malaria excel file:", error);

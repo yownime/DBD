@@ -116,7 +116,7 @@ export default function DataManagementPage() {
               Manajemen Tabel Data Pasien
             </h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Rincian data pasien lengkap dengan perbandingan Kategori Risiko Aktual vs Prediksi AI SVM.
+              Rincian data pasien lengkap dengan lokasi Kecamatan serta perbandingan Status Kerentanan Aktual vs Prediksi AI SVM.
             </p>
           </div>
           

@@ -35,7 +35,7 @@ for tahun, path in file_paths.items():
         'Provinsi Pencatat': 'Provinsi',
         'Kabupaten Pencatat': 'Kabupaten',
     })
-    cols = ['Tahun', 'Usia', 'Jenis Kelamin', 'Golongan Darah']
+    cols = ['Tahun', 'Usia', 'Jenis Kelamin', 'Golongan Darah', 'Alamat Lengkap', 'Desa', 'Desa Domisili']
     df = df[[c for c in cols if c in df.columns]]
     dfs.append(df)
 
@@ -53,21 +53,65 @@ print("=" * 60)
 print("LANGKAH 2: PREPROCESSING")
 print("=" * 60)
 
+# Fill NaN for optional location columns
+for col in ['Alamat Lengkap', 'Desa', 'Desa Domisili']:
+    if col in data.columns:
+        data[col] = data[col].fillna('-')
+    else:
+        data[col] = '-'
+
 data['Jenis Kelamin'] = data['Jenis Kelamin'].astype(str).str.strip().str.title()
 data['Golongan Darah'] = data['Golongan Darah'].astype(str).str.strip().str.upper()
 data = data[data['Jenis Kelamin'].isin(['Laki Laki', 'Perempuan'])]
 data = data[data['Golongan Darah'].isin(['A', 'B', 'O', 'AB'])]
-data = data.dropna()
-print(f"Data bersih: {data.shape[0]} baris")
+data = data.dropna(subset=['Usia', 'Jenis Kelamin', 'Golongan Darah'])
 
-# TARGET: 4 Kelompok Risiko Usia
-data['Risiko'] = pd.cut(
-    data['Usia'],
-    bins=[0, 5, 17, 45, 200],
-    labels=['Balita (0-5)', 'Remaja (6-17)', 'Dewasa (18-45)', 'Lansia (46+)'],
-    include_lowest=True
-)
-print(f"\nDistribusi target (Kelompok Risiko):")
+# Extract Kelurahan code (0 to 10)
+def get_kelurahan_code(row):
+    addr = str(row.get('Alamat Lengkap', '')).upper()
+    desa = str(row.get('Desa', row.get('Desa Domisili', ''))).upper()
+    
+    target_desas = {
+        'MUTIARA': 1,
+        'SENTANG': 2,
+        'SIUMBUT-UMBUT': 3,
+        'SIUMBUT UMBUT': 3,
+        'LESTARI': 4,
+        'SIUMBUT BARU': 5,
+        'SELAWAN': 6,
+        'BUNUT BARAT': 7,
+        'TELADAN': 8,
+        'KISARAN NAGA': 9,
+        'SIDOMUKTI': 10
+    }
+    
+    for k, v in target_desas.items():
+        if k in addr or k in desa:
+            return v
+    return 0
+
+data['Kelurahan_enc'] = data.apply(get_kelurahan_code, axis=1)
+
+# Target: Rentan vs Tidak Rentan
+def get_vulnerability(row):
+    usia = int(row['Usia'])
+    jk = str(row['Jenis Kelamin']).strip().upper()
+    gd = str(row['Golongan Darah']).strip().upper()
+    kel_enc = int(row['Kelurahan_enc'])
+    
+    is_vulnerable_age = (usia <= 5 or usia >= 46)
+    is_in_top_kelurahan = (kel_enc > 0)
+    is_vulnerable_blood = gd in ['O', 'A']
+    is_vulnerable_gender = (jk == 'PEREMPUAN')
+    
+    if is_vulnerable_age or (is_in_top_kelurahan and (is_vulnerable_blood or is_vulnerable_gender)):
+        return 'Rentan'
+    return 'Tidak Rentan'
+
+data['Risiko'] = data.apply(get_vulnerability, axis=1)
+
+print(f"Data bersih: {data.shape[0]} baris")
+print(f"\nDistribusi target (Vulnerability):")
 print(data['Risiko'].value_counts())
 
 # Label Encoding
@@ -89,7 +133,7 @@ data['JK_GD']      = data['JK_enc'] * data['GD_enc']
 data['Usia_Tahun'] = data['Usia'] * (data['Tahun'] - 2018)
 data['Tahun_rel']  = data['Tahun'] - 2019
 
-FITUR = ['Usia', 'Usia2', 'JK_enc', 'GD_enc', 'Tahun_rel', 'JK_GD', 'Usia_Tahun']
+FITUR = ['Usia', 'Usia2', 'JK_enc', 'GD_enc', 'Tahun_rel', 'JK_GD', 'Usia_Tahun', 'Kelurahan_enc']
 X = data[FITUR]
 y = data['Target']
 

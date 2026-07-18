@@ -216,7 +216,7 @@ export default function DashboardPage() {
                     color="amber"
                   />
                   <StatCard 
-                    title="Kelompok Terrentan" 
+                    title="Kerentanan Tertinggi" 
                     value={historicalCardsData.topGroup.split(' ')[0]} 
                     icon={<AlertTriangle size={20} />} 
                     description={historicalCardsData.topGroup.slice(historicalCardsData.topGroup.indexOf('('))}

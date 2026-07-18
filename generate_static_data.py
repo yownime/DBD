@@ -29,6 +29,32 @@ def main():
         
     df = pd.read_excel(data_path)
     
+    # Kelurahan encoding function
+    def get_kelurahan_code(row):
+        addr = str(row.get('Alamat', '')).upper()
+        desa = str(row.get('Desa', '')).upper()
+        
+        target_desas = {
+            'MUTIARA': 1,
+            'SENTANG': 2,
+            'SIUMBUT-UMBUT': 3,
+            'SIUMBUT UMBUT': 3,
+            'LESTARI': 4,
+            'SIUMBUT BARU': 5,
+            'SELAWAN': 6,
+            'BUNUT BARAT': 7,
+            'TELADAN': 8,
+            'KISARAN NAGA': 9,
+            'SIDOMUKTI': 10
+        }
+        
+        for k, v in target_desas.items():
+            if k in addr or k in desa:
+                return v
+        return 0
+
+    df['Kelurahan_enc'] = df.apply(get_kelurahan_code, axis=1)
+
     # 3. Run predictions on historical dataset
     jk_encs = le_jk.transform(df['Jenis_Kelamin'])
     gd_encs = le_gd.transform(df['Golongan_Darah'])
@@ -40,7 +66,8 @@ def main():
         'GD_enc': gd_encs,
         'Tahun_rel': df['Tahun'] - 2019,
         'JK_GD': jk_encs * gd_encs,
-        'Usia_Tahun': df['Usia'] * (df['Tahun'] - 2018)
+        'Usia_Tahun': df['Usia'] * (df['Tahun'] - 2018),
+        'Kelurahan_enc': df['Kelurahan_enc']
     })
     
     preds = model.predict(X)
@@ -71,19 +98,18 @@ def main():
     for year in sorted(historical_agg.index):
         projection_data.append({
             "Tahun": int(year),
-            "Balita (0-5)": int(historical_agg.loc[year, 'Balita (0-5)']),
-            "Remaja (6-17)": int(historical_agg.loc[year, 'Remaja (6-17)']),
-            "Dewasa (18-45)": int(historical_agg.loc[year, 'Dewasa (18-45)']),
-            "Lansia (46+)": int(historical_agg.loc[year, 'Lansia (46+)']),
+            "Rentan": int(historical_agg.loc[year, 'Rentan'] if 'Rentan' in historical_agg.columns else 0),
+            "Tidak Rentan": int(historical_agg.loc[year, 'Tidak Rentan'] if 'Tidak Rentan' in historical_agg.columns else 0),
             "Type": "Historical"
         })
         
     avg_count = int(df['Tahun'].value_counts().mean())
-    demographics = df[['Usia', 'Jenis_Kelamin', 'Golongan_Darah']].dropna()
+    demographics = df[['Usia', 'Jenis_Kelamin', 'Golongan_Darah', 'Alamat', 'Desa']].dropna()
     
     for future_year in [2025, 2026, 2027]:
         simulated = demographics.sample(n=avg_count, replace=True, random_state=future_year)
         simulated['Tahun'] = future_year
+        simulated['Kelurahan_enc'] = simulated.apply(get_kelurahan_code, axis=1)
         
         jk_encs_sim = le_jk.transform(simulated['Jenis_Kelamin'])
         gd_encs_sim = le_gd.transform(simulated['Golongan_Darah'])
@@ -95,7 +121,8 @@ def main():
             'GD_enc': gd_encs_sim,
             'Tahun_rel': simulated['Tahun'] - 2019,
             'JK_GD': jk_encs_sim * gd_encs_sim,
-            'Usia_Tahun': simulated['Usia'] * (simulated['Tahun'] - 2018)
+            'Usia_Tahun': simulated['Usia'] * (simulated['Tahun'] - 2018),
+            'Kelurahan_enc': simulated['Kelurahan_enc']
         })
         
         preds_sim = model.predict(X_sim)
@@ -104,10 +131,8 @@ def main():
         
         projection_data.append({
             "Tahun": int(future_year),
-            "Balita (0-5)": int(pred_counts.get('Balita (0-5)', 0)),
-            "Remaja (6-17)": int(pred_counts.get('Remaja (6-17)', 0)),
-            "Dewasa (18-45)": int(pred_counts.get('Dewasa (18-45)', 0)),
-            "Lansia (46+)": int(pred_counts.get('Lansia (46+)', 0)),
+            "Rentan": int(pred_counts.get('Rentan', 0)),
+            "Tidak Rentan": int(pred_counts.get('Tidak Rentan', 0)),
             "Type": "Projected"
         })
         

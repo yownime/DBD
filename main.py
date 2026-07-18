@@ -79,6 +79,8 @@ class PredictSingleInput(BaseModel):
     jenis_kelamin: str
     golongan_darah: str
     tahun: int
+    alamat: Optional[str] = ""
+    desa: Optional[str] = ""
 
 def clean_gender(val):
     if pd.isna(val):
@@ -109,6 +111,29 @@ def clean_blood_type(val):
         return val_str
     return 'O'
 
+def get_kelurahan_code_single(alamat: str, desa: str) -> int:
+    addr = str(alamat or '').upper()
+    ds = str(desa or '').upper()
+    
+    target_desas = {
+        'MUTIARA': 1,
+        'SENTANG': 2,
+        'SIUMBUT-UMBUT': 3,
+        'SIUMBUT UMBUT': 3,
+        'LESTARI': 4,
+        'SIUMBUT BARU': 5,
+        'SELAWAN': 6,
+        'BUNUT BARAT': 7,
+        'TELADAN': 8,
+        'KISARAN NAGA': 9,
+        'SIDOMUKTI': 10
+    }
+    
+    for k, v in target_desas.items():
+        if k in addr or k in ds:
+            return v
+    return 0
+
 @app.post("/api/predict_single")
 def predict_single(data: PredictSingleInput):
     global model, le_jk, le_gd, le_risiko
@@ -121,6 +146,7 @@ def predict_single(data: PredictSingleInput):
         gd_cleaned = clean_blood_type(data.golongan_darah)
         usia_cleaned = clean_age(data.usia)
         tahun = data.tahun
+        kel_enc = get_kelurahan_code_single(data.alamat, data.desa)
         
         # Label encode
         jk_enc = le_jk.transform([jk_cleaned])[0]
@@ -133,8 +159,8 @@ def predict_single(data: PredictSingleInput):
         usia_tahun = usia_cleaned * (tahun - 2018)
         
         features = pd.DataFrame([[
-            usia_cleaned, usia2, jk_enc, gd_enc, tahun_rel, jk_gd, usia_tahun
-        ]], columns=['Usia', 'Usia2', 'JK_enc', 'GD_enc', 'Tahun_rel', 'JK_GD', 'Usia_Tahun'])
+            usia_cleaned, usia2, jk_enc, gd_enc, tahun_rel, jk_gd, usia_tahun, kel_enc
+        ]], columns=['Usia', 'Usia2', 'JK_enc', 'GD_enc', 'Tahun_rel', 'JK_GD', 'Usia_Tahun', 'Kelurahan_enc'])
         
         pred = model.predict(features)[0]
         pred_label = le_risiko.inverse_transform([pred])[0]
@@ -167,6 +193,31 @@ def get_historical_with_predictions():
         jk_encs = le_jk.transform(df['Jenis_Kelamin'])
         gd_encs = le_gd.transform(df['Golongan_Darah'])
         
+        def get_kelurahan_code(row):
+            addr = str(row.get('Alamat', '')).upper()
+            desa = str(row.get('Desa', '')).upper()
+            
+            target_desas = {
+                'MUTIARA': 1,
+                'SENTANG': 2,
+                'SIUMBUT-UMBUT': 3,
+                'SIUMBUT UMBUT': 3,
+                'LESTARI': 4,
+                'SIUMBUT BARU': 5,
+                'SELAWAN': 6,
+                'BUNUT BARAT': 7,
+                'TELADAN': 8,
+                'KISARAN NAGA': 9,
+                'SIDOMUKTI': 10
+            }
+            
+            for k, v in target_desas.items():
+                if k in addr or k in desa:
+                    return v
+            return 0
+
+        df['Kelurahan_enc'] = df.apply(get_kelurahan_code, axis=1)
+        
         X = pd.DataFrame({
             'Usia': df['Usia'],
             'Usia2': df['Usia'] ** 2,
@@ -174,7 +225,8 @@ def get_historical_with_predictions():
             'GD_enc': gd_encs,
             'Tahun_rel': df['Tahun'] - 2019,
             'JK_GD': jk_encs * gd_encs,
-            'Usia_Tahun': df['Usia'] * (df['Tahun'] - 2018)
+            'Usia_Tahun': df['Usia'] * (df['Tahun'] - 2018),
+            'Kelurahan_enc': df['Kelurahan_enc']
         })
         
         preds = model.predict(X)
@@ -222,36 +274,47 @@ def get_projection():
             
         df = pd.read_excel(data_path)
         
-        # 1. Group historical data by year and risk group
+        # 1. Group historical data by year and risk group (Rentan / Tidak Rentan)
         historical_agg = df.groupby(['Tahun', 'Risiko']).size().unstack(fill_value=0)
         
         results = []
         for year in sorted(historical_agg.index):
             results.append({
                 "Tahun": int(year),
-                "Balita (0-5)": int(historical_agg.loc[year, 'Balita (0-5)']),
-                "Remaja (6-17)": int(historical_agg.loc[year, 'Remaja (6-17)']),
-                "Dewasa (18-45)": int(historical_agg.loc[year, 'Dewasa (18-45)']),
-                "Lansia (46+)": int(historical_agg.loc[year, 'Lansia (46+)']),
+                "Rentan": int(historical_agg.loc[year, 'Rentan'] if 'Rentan' in historical_agg.columns else 0),
+                "Tidak Rentan": int(historical_agg.loc[year, 'Tidak Rentan'] if 'Tidak Rentan' in historical_agg.columns else 0),
                 "Type": "Historical"
             })
             
         # 2. Simulate future cases for 2025, 2026, 2027
-        # We project the future case counts based on moving average of last 3 years
         last_years_counts = df['Tahun'].value_counts()
         avg_count = int(last_years_counts.mean()) if len(last_years_counts) > 0 else 500
         
         # Draw samples from historical cases to represent patient demographics
-        demographics = df[['Usia', 'Jenis_Kelamin', 'Golongan_Darah']].dropna()
+        demographics = df[['Usia', 'Jenis_Kelamin', 'Golongan_Darah', 'Alamat', 'Desa']].dropna()
         if len(demographics) == 0:
             demographics = pd.DataFrame({
-                'Usia': [30], 'Jenis_Kelamin': ['Laki Laki'], 'Golongan_Darah': ['O']
+                'Usia': [30], 'Jenis_Kelamin': ['Laki Laki'], 'Golongan_Darah': ['O'], 'Alamat': ['-'], 'Desa': ['-']
             })
             
+        def get_kelurahan_code(row):
+            addr = str(row.get('Alamat', '')).upper()
+            desa = str(row.get('Desa', '')).upper()
+            target_desas = {
+                'MUTIARA': 1, 'SENTANG': 2, 'SIUMBUT-UMBUT': 3, 'SIUMBUT UMBUT': 3,
+                'LESTARI': 4, 'SIUMBUT BARU': 5, 'SELAWAN': 6, 'BUNUT BARAT': 7,
+                'TELADAN': 8, 'KISARAN NAGA': 9, 'SIDOMUKTI': 10
+            }
+            for k, v in target_desas.items():
+                if k in addr or k in desa:
+                    return v
+            return 0
+
         for future_year in [2025, 2026, 2027]:
             # Resample demographics
             simulated = demographics.sample(n=min(avg_count, len(demographics)), replace=True, random_state=future_year)
             simulated['Tahun'] = future_year
+            simulated['Kelurahan_enc'] = simulated.apply(get_kelurahan_code, axis=1)
             
             # Feature engineering
             jk_encs = le_jk.transform(simulated['Jenis_Kelamin'])
@@ -264,7 +327,8 @@ def get_projection():
                 'GD_enc': gd_encs,
                 'Tahun_rel': simulated['Tahun'] - 2019,
                 'JK_GD': jk_encs * gd_encs,
-                'Usia_Tahun': simulated['Usia'] * (simulated['Tahun'] - 2018)
+                'Usia_Tahun': simulated['Usia'] * (simulated['Tahun'] - 2018),
+                'Kelurahan_enc': simulated['Kelurahan_enc']
             })
             
             preds = model.predict(X)
@@ -274,10 +338,8 @@ def get_projection():
             
             results.append({
                 "Tahun": int(future_year),
-                "Balita (0-5)": int(pred_counts.get('Balita (0-5)', 0)),
-                "Remaja (6-17)": int(pred_counts.get('Remaja (6-17)', 0)),
-                "Dewasa (18-45)": int(pred_counts.get('Dewasa (18-45)', 0)),
-                "Lansia (46+)": int(pred_counts.get('Lansia (46+)', 0)),
+                "Rentan": int(pred_counts.get('Rentan', 0)),
+                "Tidak Rentan": int(pred_counts.get('Tidak Rentan', 0)),
                 "Type": "Projected"
             })
             
@@ -380,6 +442,31 @@ async def predict_malaria(
         jk_encs = le_jk.transform(clean_df['Jenis_Kelamin'])
         gd_encs = le_gd.transform(clean_df['Golongan_Darah'])
         
+        def get_kelurahan_code(row):
+            addr = str(row.get('Alamat', '')).upper()
+            desa = str(row.get('Desa', '')).upper()
+            
+            target_desas = {
+                'MUTIARA': 1,
+                'SENTANG': 2,
+                'SIUMBUT-UMBUT': 3,
+                'SIUMBUT UMBUT': 3,
+                'LESTARI': 4,
+                'SIUMBUT BARU': 5,
+                'SELAWAN': 6,
+                'BUNUT BARAT': 7,
+                'TELADAN': 8,
+                'KISARAN NAGA': 9,
+                'SIDOMUKTI': 10
+            }
+            
+            for k, v in target_desas.items():
+                if k in addr or k in desa:
+                    return v
+            return 0
+
+        clean_df['Kelurahan_enc'] = clean_df.apply(get_kelurahan_code, axis=1)
+        
         X = pd.DataFrame({
             'Usia': clean_df['Usia'],
             'Usia2': clean_df['Usia'] ** 2,
@@ -387,7 +474,8 @@ async def predict_malaria(
             'GD_enc': gd_encs,
             'Tahun_rel': clean_df['Tahun'] - 2019,
             'JK_GD': jk_encs * gd_encs,
-            'Usia_Tahun': clean_df['Usia'] * (clean_df['Tahun'] - 2018)
+            'Usia_Tahun': clean_df['Usia'] * (clean_df['Tahun'] - 2018),
+            'Kelurahan_enc': clean_df['Kelurahan_enc']
         })
         
         # Run SVM predictions

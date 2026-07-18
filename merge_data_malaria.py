@@ -31,15 +31,31 @@ def clean_blood_type(val):
         return val_str
     return 'O'
 
-def get_risk_group(usia):
-    if usia <= 5:
-        return 'Balita (0-5)'
-    elif usia <= 17:
-        return 'Remaja (6-17)'
-    elif usia <= 45:
-        return 'Dewasa (18-45)'
-    else:
-        return 'Lansia (46+)'
+def get_vulnerability(row):
+    usia = int(row['Usia'])
+    jk = str(row['Jenis_Kelamin']).strip().upper()
+    gd = str(row['Golongan_Darah']).strip().upper()
+    alamat = str(row['Alamat']).strip().upper()
+    desa = str(row['Desa']).strip().upper()
+    
+    # 1. Age factor (Balita <= 5 or Lansia >= 46 are vulnerable)
+    is_vulnerable_age = (usia <= 5 or usia >= 46)
+    
+    # 2. Location factor (top 10 kelurahans in Asahan)
+    target_desas = ['MUTIARA', 'SENTANG', 'SIUMBUT-UMBUT', 'SIUMBUT UMBUT', 'LESTARI', 'SIUMBUT BARU', 'SELAWAN', 'BUNUT BARAT', 'TELADAN', 'KISARAN NAGA', 'SIDOMUKTI']
+    is_in_top_kelurahan = any(d in alamat or d in desa for d in target_desas)
+    
+    # 3. Blood type factor (O and A)
+    is_vulnerable_blood = gd in ['O', 'A']
+    
+    # 4. Gender factor (Perempuan)
+    is_vulnerable_gender = (jk == 'PEREMPUAN')
+    
+    # Rule
+    if is_vulnerable_age or (is_in_top_kelurahan and (is_vulnerable_blood or is_vulnerable_gender)):
+        return 'Rentan'
+    return 'Tidak Rentan'
+
 
 def main():
     print("Memulai penggabungan dataset Malaria...")
@@ -118,7 +134,7 @@ def main():
         for text_col in ['Provinsi', 'Kabupaten', 'Desa', 'Dusun', 'Alamat']:
             clean_df[text_col] = clean_df[text_col].fillna('-').astype(str).str.strip().str.upper()
             
-        clean_df['Risiko'] = clean_df['Usia'].apply(get_risk_group)
+        clean_df['Risiko'] = clean_df.apply(get_vulnerability, axis=1)
         
         all_dfs.append(clean_df)
 

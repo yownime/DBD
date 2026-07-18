@@ -16,9 +16,30 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // 1. Combine data based on type
+  // Helper to extract Kecamatan from Alamat
+  const extractKecamatan = (alamat: string): string => {
+    if (!alamat || alamat === '-') return '-';
+    const addr = alamat.toUpperCase();
+    const match = addr.match(/KECAMATAN\s+([A-Z\s\-]+?)(?:\s+KABUPATEN|\s+KAB|\s+PROVINSI|\d|\,|\.|$)/);
+    if (match) {
+      const kec = match[1].trim();
+      if (kec && kec !== '-') return kec;
+    }
+    const matchKec = addr.match(/KEC\.\s+([A-Z\s\-]+?)(?:\s+KABUPATEN|\s+KAB|\s+PROVINSI|\d|\,|\.|$)/);
+    if (matchKec) {
+      const kec = matchKec[1].trim();
+      if (kec && kec !== '-') return kec;
+    }
+    return '-';
+  };
+
+  // 1. Combine data based on type and inject Kecamatan
   const items = useMemo(() => {
-    return type === 'raw' ? rawData : predictionData;
+    const rawItems = type === 'raw' ? rawData : predictionData;
+    return rawItems.map(item => ({
+      ...item,
+      Kecamatan: extractKecamatan(item.Alamat)
+    }));
   }, [type, rawData, predictionData]);
 
   // Reset page when search query changes
@@ -35,13 +56,12 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
     return items.filter((item) => {
       return (
         String(item.Kabupaten || '').toLowerCase().includes(query) ||
+        String(item.Kecamatan || '').toLowerCase().includes(query) ||
         String(item.Desa || '').toLowerCase().includes(query) ||
         String(item.Dusun || '').toLowerCase().includes(query) ||
         String(item.Alamat || '').toLowerCase().includes(query) ||
         String(item.Jenis_Kelamin || '').toLowerCase().includes(query) ||
         String(item.Golongan_Darah || '').toLowerCase().includes(query) ||
-        String(item.Risiko || '').toLowerCase().includes(query) ||
-        String(item.Prediksi || '').toLowerCase().includes(query) ||
         String(item.Tahun || '').toLowerCase().includes(query)
       );
     });
@@ -81,36 +101,6 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
     return sortedItems.slice(startIndex, startIndex + rowsPerPage);
   }, [sortedItems, currentPage, rowsPerPage]);
 
-  const getRiskBadge = (risk: string) => {
-    const cleanRisk = String(risk).trim();
-    if (cleanRisk.includes('Balita')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-500 border border-teal-500/20">
-          Balita (0-5)
-        </span>
-      );
-    }
-    if (cleanRisk.includes('Remaja')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-          Remaja (6-17)
-        </span>
-      );
-    }
-    if (cleanRisk.includes('Dewasa')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
-          Dewasa (18-45)
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20">
-        Lansia (46+)
-      </span>
-    );
-  };
-
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Search Bar & Stats */}
@@ -121,7 +111,7 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
           </div>
           <input
             type="text"
-            placeholder="Cari wilayah, kabupaten, desa, dusun..."
+            placeholder="Cari wilayah, kabupaten, kecamatan, desa, dusun..."
             value={searchQuery}
             onChange={handleSearchChange}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-teal-500/40 text-sm transition-all shadow-sm"
@@ -142,15 +132,16 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
                 <th onClick={() => handleSort('No')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">No</th>
                 <th onClick={() => handleSort('Tahun')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Tahun</th>
                 <th onClick={() => handleSort('Kabupaten')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Kabupaten</th>
+                <th onClick={() => handleSort('Kecamatan')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Kecamatan</th>
                 <th onClick={() => handleSort('Desa')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Desa</th>
                 <th onClick={() => handleSort('Dusun')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Dusun</th>
                 <th onClick={() => handleSort('Usia')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Usia</th>
                 <th onClick={() => handleSort('Jenis_Kelamin')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors">Jenis Kelamin</th>
                 <th onClick={() => handleSort('Golongan_Darah')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Gol. Darah</th>
                 {type === 'raw' ? (
-                  <th onClick={() => handleSort('Risiko')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Kelompok Risiko</th>
+                  <th onClick={() => handleSort('Risiko')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Status Kerentanan</th>
                 ) : (
-                  <th onClick={() => handleSort('Prediksi')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Prediksi Risiko (AI)</th>
+                  <th onClick={() => handleSort('Prediksi')} className="px-6 py-4 cursor-pointer hover:bg-[var(--border-color)] transition-colors text-center">Prediksi Kerentanan (AI)</th>
                 )}
               </tr>
             </thead>
@@ -162,6 +153,7 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
                     <td className="px-6 py-4.5 font-medium text-[var(--text-primary)]">{row.No}</td>
                     <td className="px-6 py-4.5">{row.Tahun}</td>
                     <td className="px-6 py-4.5 font-semibold text-[var(--text-primary)]">{row.Kabupaten}</td>
+                    <td className="px-6 py-4.5 font-semibold text-[var(--text-primary)]">{row.Kecamatan}</td>
                     <td className="px-6 py-4.5 text-xs font-medium">{row.Desa}</td>
                     <td className="px-6 py-4.5 text-xs">{row.Dusun}</td>
                     <td className="px-6 py-4.5 text-center font-bold text-[var(--text-primary)]">{row.Usia}</td>
@@ -177,14 +169,22 @@ export default function DataTable({ type, rawData = [], predictionData = [] }: D
                     <td className="px-6 py-4.5 text-center font-bold text-[var(--text-primary)]">
                       {row.Golongan_Darah}
                     </td>
-                    <td className="px-6 py-4.5 text-center">
-                      {getRiskBadge(type === 'raw' ? row.Risiko : row.Prediksi)}
+                    <td className="px-6 py-4.5 text-center font-bold text-[var(--text-primary)]">
+                      {row.Risiko === 'Rentan' || row.Prediksi === 'Rentan' ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                          Rentan
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-500 border border-teal-500/20">
+                          Tidak Rentan
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-tertiary)] bg-[var(--bg-secondary)]">
+                  <td colSpan={10} className="px-6 py-12 text-center text-[var(--text-tertiary)] bg-[var(--bg-secondary)]">
                     Tidak ada data yang cocok dengan pencarian Anda.
                   </td>
                 </tr>
